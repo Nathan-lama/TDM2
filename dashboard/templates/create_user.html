@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Créer un Utilisateur - Système de Recommandation</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Dashboard de Recommandation</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Utilisateurs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_task">Créer Tâche</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/batch_download">Téléchargement par lot</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1 class="mb-4">Créer un Nouvel Utilisateur</h1>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Informations de l'utilisateur</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="form-group">
+                        <label for="user_id">ID Utilisateur (optionnel):</label>
+                        <input type="text" class="form-control" id="user_id" name="user_id" placeholder="Laissez vide pour générer automatiquement">
+                    </div>
+                    <div class="form-group">
+                        <label for="name">Nom:</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Genres préférés:</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="genres" value="action" id="genre_action">
+                            <label class="form-check-label" for="genre_action">Action</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="genres" value="comedy" id="genre_comedy">
+                            <label class="form-check-label" for="genre_comedy">Comédie</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="genres" value="drama" id="genre_drama">
+                            <label class="form-check-label" for="genre_drama">Drame</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="genres" value="sci-fi" id="genre_scifi">
+                            <label class="form-check-label" for="genre_scifi">Science-Fiction</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="genres" value="horror" id="genre_horror">
+                            <label class="form-check-label" for="genre_horror">Horreur</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Couleurs préférées:</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="colors" value="red" id="color_red">
+                            <label class="form-check-label" for="color_red">Rouge</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="colors" value="blue" id="color_blue">
+                            <label class="form-check-label" for="color_blue">Bleu</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="colors" value="green" id="color_green">
+                            <label class="form-check-label" for="color_green">Vert</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="colors" value="yellow" id="color_yellow">
+                            <label class="form-check-label" for="color_yellow">Jaune</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="colors" value="black" id="color_black">
+                            <label class="form-check-label" for="color_black">Noir</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Créer Utilisateur</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

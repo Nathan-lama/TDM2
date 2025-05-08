@@ -1,0 +1,6 @@
+pymongo==4.1.1
+pyspark==3.2.0
+Pillow==9.0.1
+opencv-python==4.5.5.64
+scikit-learn==1.0.2
+numpy==1.22.3

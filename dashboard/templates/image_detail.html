@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Détail de l'Image - Système de Recommandation</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .color-swatch {
+            width: 30px;
+            height: 30px;
+            display: inline-block;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Dashboard de Recommandation</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Utilisateurs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_task">Créer Tâche</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/batch_download">Téléchargement par lot</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1 class="mb-4">Détail de l'Image</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Image</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <img src="/images/{{ image._id }}" class="img-fluid" alt="Image" onerror="this.src='/static/no-image.jpg'">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Métadonnées</h5>
+                        {% if not image.tagged %}
+                            <form method="post" action="/tag_image" class="mt-2">
+                                <input type="hidden" name="image_id" value="{{ image._id }}">
+                                <button type="submit" class="btn btn-sm btn-warning">Tagger cette image</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <th>ID</th>
+                                    <td>{{ image._id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>URL</th>
+                                    <td>{{ image.url }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Dimensions</th>
+                                    <td>{{ image.width }} x {{ image.height }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Format</th>
+                                    <td>{{ image.format }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Mode</th>
+                                    <td>{{ image.mode }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Orientation</th>
+                                    <td>{{ image.orientation }}</td>
+                                </tr>
+                                {% if image.aspect_ratio %}
+                                <tr>
+                                    <th>Ratio d'aspect</th>
+                                    <td>{{ image.aspect_ratio }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if image.brightness is defined %}
+                                <tr>
+                                    <th>Luminosité</th>
+                                    <td>{{ image.brightness }}/255</td>
+                                </tr>
+                                {% endif %}
+                                {% if image.sharpness is defined %}
+                                <tr>
+                                    <th>Netteté</th>
+                                    <td>{{ image.sharpness|round(2) }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <th>Taille</th>
+                                    <td>{{ (image.size_bytes / 1024) | round(2) }} KB</td>
+                                </tr>
+                                <tr>
+                                    <th>Téléchargé par</th>
+                                    <td>{{ image.downloaded_by }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Statut de tagging</th>
+                                    <td>
+                                        {% if image.tagged %}
+                                            <span class="badge badge-success">Tagué</span>
+                                            {% if image.tagged_at %}
+                                                <small class="text-muted">le {{ image.tagged_at|timestamp_to_date }}</small>
+                                            {% endif %}
+                                            {% if image.tagged_by %}
+                                                <small class="text-muted">par {{ image.tagged_by }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge badge-warning">Non tagué</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if image.tags %}
+                                <tr>
+                                    <th>Tags</th>
+                                    <td>
+                                        {% for tag in image.tags %}
+                                            <span class="badge badge-info">{{ tag }}</span>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                {% if image.dominant_colors %}
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Couleurs dominantes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for color in image.dominant_colors %}
+                            <div class="col-md-6 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <div style="width: 30px; height: 30px; background-color: {{ color.hex }}; margin-right: 10px; border-radius: 4px;"></div>
+                                    <div>
+                                        <strong>{{ color.name }}</strong><br>
+                                        <small>{{ color.hex }} - {{ color.percentage|default(0)|round(1) }}%</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

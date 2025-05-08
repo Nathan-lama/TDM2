@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Système de Recommandation - Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Dashboard de Recommandation</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Utilisateurs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_task">Créer Tâche</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/workers">Workers</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/worker_debug">Worker Debug</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/autoscaling">Auto-scaling</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1 class="mb-4">Dashboard de Recommandation d'Images</h1>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">Statistiques Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Images Totales
+                                <span class="badge badge-primary badge-pill">{{ stats.images_count }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Images Taguées
+                                <span class="badge badge-success badge-pill">{{ stats.tagged_images }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Utilisateurs
+                                <span class="badge badge-info badge-pill">{{ stats.users_count }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Recommandations Générées
+                                <span class="badge badge-warning badge-pill">{{ stats.recommendations_count }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">Actions Rapides</h5>
+                    </div>
+                    <div class="card-body">
+                        <a href="/create_task" class="btn btn-primary">Nouvelle Tâche</a>
+                        <a href="/create_user" class="btn btn-secondary">Nouvel Utilisateur</a>
+                        <a href="/images" class="btn btn-info">Parcourir Images</a>
+                        <a href="/users" class="btn btn-warning">Gérer Utilisateurs</a>
+                        <a href="/batch_download" class="btn btn-success">Téléchargement par lot</a>
+                        
+                        <!-- Nouveau bouton pour supprimer toutes les images -->
+                        <form method="post" action="/clear_database" class="d-inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer TOUTES les images de la base de données?');">
+                            <button type="submit" class="btn btn-danger">Supprimer toutes les images</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">Activité Récente</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>Téléchargements Récents</h6>
+                        <ul class="list-group mb-3">
+                            {% for task in downloader_tasks %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Worker {{ task.worker_id }} 
+                                    {% if task.status == 'completed' %}
+                                        <span class="badge badge-success">{{ task.success_count }}/{{ task.total_count }}</span>
+                                    {% else %}
+                                        <span class="badge badge-warning">{{ task.status }}</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <h6>Tagging Récent</h6>
+                        <ul class="list-group mb-3">
+                            {% for task in tagger_tasks %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Worker {{ task.worker_id }}
+                                    {% if task.status == 'completed' %}
+                                        <span class="badge badge-success">{{ task.success_count }}/{{ task.total_count }}</span>
+                                    {% else %}
+                                        <span class="badge badge-warning">{{ task.status }}</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <h6>Recommandations Récentes</h6>
+                        <ul class="list-group">
+                            {% for task in recommendation_tasks %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ task.user_ids|length }} utilisateurs
+                                    <span class="badge badge-{{ 'success' if task.status == 'completed' else 'warning' }}">
+                                        {{ task.status }}
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

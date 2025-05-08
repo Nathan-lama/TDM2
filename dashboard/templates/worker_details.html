@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Détails du Worker - Système de Recommandation</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .status-badge {
+            font-size: 1rem;
+            padding: 0.5rem 0.75rem;
+        }
+        .task-item {
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .task-completed {
+            border-left-color: #28a745;
+        }
+        .task-pending {
+            border-left-color: #ffc107;
+        }
+        .task-failed {
+            border-left-color: #dc3545;
+        }
+        .stats-card {
+            transition: transform 0.3s;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .log-info {
+            color: #0066cc;
+        }
+        .log-warning {
+            color: #ff9900;
+        }
+        .log-error {
+            color: #cc0000;
+        }
+        .performance-chart {
+            height: 250px;
+        }
+        .refresh-button {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Dashboard de Recommandation</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Utilisateurs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/workers">Workers</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/batch_download">Téléchargement par lot</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                Worker: {{ worker.type }} #{{ worker.id }}
+                {% if worker.status == 'active' %}
+                    <span class="badge badge-success status-badge">Actif</span>
+                {% elif worker.status == 'idle' %}
+                    <span class="badge badge-secondary status-badge">En attente</span>
+                {% else %}
+                    <span class="badge badge-danger status-badge">Inactif</span>
+                {% endif %}
+            </h1>
+            <a href="/worker/{{ worker.type }}/{{ worker.id }}?refresh=true" class="btn btn-sm btn-primary refresh-button">
+                <i class="fa fa-refresh"></i> Rafraîchir
+            </a>
+        </div>
+        
+        <div class="row mb-4">
+            <!-- Statistiques -->
+            <div class="col-md-3">
+                <div class="card stats-card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Tâches traitées</h5>
+                        <h2 class="card-text">{{ worker.stats.completed_tasks }}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Taux de succès</h5>
+                        <h2 class="card-text">{{ worker.stats.success_rate }}%</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Temps moyen</h5>
+                        <h2 class="card-text">{{ worker.stats.avg_processing_time }}s</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Tâches en attente</h5>
+                        <h2 class="card-text">{{ worker.stats.pending_tasks }}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Performances</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="performanceChart" class="performance-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Logs récents</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="log-container">
+                            {% for log in worker.logs %}
+                                <div class="log-entry log-{{ log.level }}">
+                                    <strong>{{ log.timestamp }}</strong> - {{ log.message }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Tâches récentes</h5>
+            </div>
+            <div class="card-body">
+                {% if worker.recent_tasks %}
+                    {% for task in worker.recent_tasks %}
+                        <div class="task-item task-{{ task.status }}">
+                            <div class="d-flex justify-content-between">
+                                <h5>{{ task.id }}</h5>
+                                <span class="badge badge-{{ task.status_color }}">{{ task.status|capitalize }}</span>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Démarré:</strong> {{ task.started_at }}</p>
+                                    {% if task.completed_at %}
+                                        <p><strong>Terminé:</strong> {{ task.completed_at }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    {% if task.type == 'download' %}
+                                        <p><strong>URLs:</strong> {{ task.urls|length }}</p>
+                                        <p><strong>Succès:</strong> {{ task.success_count }} / {{ task.urls|length }}</p>
+                                    {% elif task.type == 'tag' %}
+                                        <p><strong>Images:</strong> {{ task.image_ids|length }}</p>
+                                        <p><strong>Succès:</strong> {{ task.success_count }} / {{ task.image_ids|length }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if task.errors and task.errors|length > 0 %}
+                                <div class="mt-2">
+                                    <a class="btn btn-sm btn-outline-danger" data-toggle="collapse" href="#errors{{ loop.index }}">
+                                        Afficher les erreurs ({{ task.errors|length }})
+                                    </a>
+                                    <div class="collapse mt-2" id="errors{{ loop.index }}">
+                                        <div class="card card-body bg-light">
+                                            <ul class="mb-0">
+                                                {% for error in task.errors %}
+                                                    <li>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">Aucune tâche récente pour ce worker.</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Informations système</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>Démarré le</th>
+                                    <td>{{ worker.system_info.started_at }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Uptime</th>
+                                    <td>{{ worker.system_info.uptime }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Version</th>
+                                    <td>{{ worker.system_info.version }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Hostname</th>
+                                    <td>{{ worker.system_info.hostname }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th>CPU Usage</th>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar" role="progressbar" 
+                                                style="width: {{ worker.system_info.cpu_usage }}%;" 
+                                                aria-valuenow="{{ worker.system_info.cpu_usage }}" 
+                                                aria-valuemin="0" aria-valuemax="100">
+                                                {{ worker.system_info.cpu_usage }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Memory Usage</th>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar bg-info" role="progressbar" 
+                                                style="width: {{ worker.system_info.memory_usage }}%;" 
+                                                aria-valuenow="{{ worker.system_info.memory_usage }}" 
+                                                aria-valuemin="0" aria-valuemax="100">
+                                                {{ worker.system_info.memory_usage }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Disk Usage</th>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar bg-warning" role="progressbar" 
+                                                style="width: {{ worker.system_info.disk_usage }}%;" 
+                                                aria-valuenow="{{ worker.system_info.disk_usage }}" 
+                                                aria-valuemin="0" aria-valuemax="100">
+                                                {{ worker.system_info.disk_usage }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Données pour le graphique de performance
+        var performanceData = {
+            labels: [
+                {% for data in worker.performance_history %}
+                    "{{ data.timestamp }}",
+                {% endfor %}
+            ],
+            datasets: [{
+                label: 'Tâches par minute',
+                backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                borderColor: 'rgba(0, 123, 255, 1)',
+                data: [
+                    {% for data in worker.performance_history %}
+                        {{ data.tasks_per_minute }},
+                    {% endfor %}
+                ],
+                yAxisID: 'y'
+            }, {
+                label: 'Temps moyen par tâche (s)',
+                backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                data: [
+                    {% for data in worker.performance_history %}
+                        {{ data.avg_time }},
+                    {% endfor %}
+                ],
+                yAxisID: 'y1'
+            }]
+        };
+
+        // Configuration du graphique
+        var ctx = document.getElementById('performanceChart').getContext('2d');
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: performanceData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Tâches par minute'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Temps moyen (s)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://use.fontawesome.com/releases/v5.15.4/js/all.js"></script>
+</body>
+</html>

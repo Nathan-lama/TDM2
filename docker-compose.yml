@@ -1,0 +1,86 @@
+version: '3'
+
+services:
+  orchestrator:
+    build: ./orchestrator
+    volumes:
+      - shared_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "5001:5001"  # Exposer l'API REST de l'orchestrateur
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - PROJECT_PATH=/app
+    networks:
+      - app_network
+
+  image_downloader_1:
+    build: ./image_downloader
+    volumes:
+      - shared_data:/data
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - WORKER_ID=1
+    networks:
+      - app_network
+
+  image_tagger_1:
+    build: ./image_tagger
+    volumes:
+      - shared_data:/data
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - WORKER_ID=1
+    networks:
+      - app_network
+
+  recommendation:
+    build: ./recommendation
+    volumes:
+      - shared_data:/data
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+    networks:
+      - app_network
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5000:5000"
+    volumes:
+      - shared_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - database
+      - orchestrator
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - PROJECT_PATH=/app
+      - COMPOSE_PATH=/app
+    networks:
+      - app_network
+
+  database:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app_network
+
+volumes:
+  shared_data:
+  mongo_data:
+
+networks:
+  app_network:
+    driver: bridge

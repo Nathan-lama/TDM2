@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Créer une Tâche - Système de Recommandation</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Dashboard de Recommandation</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Accueil</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/images">Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Utilisateurs</a>
+                    </li>
+                    <li class="nav-item active">
+                        <a class="nav-link" href="/create_task">Créer Tâche</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/batch_download">Téléchargement par lot</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1 class="mb-4">Créer une Nouvelle Tâche</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Sélectionnez le type de tâche</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="form-group">
+                        <label for="task_type">Type de tâche:</label>
+                        <select class="form-control" id="task_type" name="task_type" onchange="showTaskOptions(this.value)">
+                            <option value="">-- Sélectionnez --</option>
+                            <option value="download">Téléchargement d'images</option>
+                            <option value="tagging">Tagging d'images</option>
+                            <option value="recommendation">Génération de recommandations</option>
+                        </select>
+                    </div>
+                    
+                    <div id="download_options" class="task-options" style="display: none;">
+                        <div class="form-group">
+                            <label for="urls">URLs des images (une par ligne):</label>
+                            <textarea class="form-control" id="urls" name="urls" rows="10" placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div id="tagging_options" class="task-options" style="display: none;">
+                        <div class="alert alert-info">
+                            Cette tâche va chercher toutes les images non taguées et les envoyer aux taggers.
+                        </div>
+                    </div>
+                    
+                    <div id="recommendation_options" class="task-options" style="display: none;">
+                        <div class="alert alert-info">
+                            Cette tâche va générer des recommandations pour tous les utilisateurs enregistrés.
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Créer Tâche</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTaskOptions(taskType) {
+            // Cacher toutes les options
+            document.querySelectorAll('.task-options').forEach(function(el) {
+                el.style.display = 'none';
+            });
+            
+            // Afficher les options correspondantes au type de tâche sélectionné
+            if (taskType) {
+                document.getElementById(taskType + '_options').style.display = 'block';
+            }
+        }
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
