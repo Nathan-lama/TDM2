@@ -7,9 +7,9 @@ import traceback
 import json
 import subprocess
 
-# Configuration du logger avec plus de détails
+# Configuration du logger avec format correct
 logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                    handlers=[
                        logging.StreamHandler(),  # Pour afficher dans la console
                    ])
@@ -91,10 +91,10 @@ def create_new_worker_container(service_name, worker_id):
         # Vérifie si un conteneur avec ce nom existe déjà et le supprime
         try:
             existing = docker_client.containers.get(container_name)
-            logger.warning(f"⚠️ Un conteneur {container_name existe déjà, statut: {existing.status}")
+            logger.warning(f"⚠️ Un conteneur {container_name} existe déjà, statut: {existing.status}")
             
             if existing.status != 'running':
-                logger.warning(f"⚠️ Suppression du conteneur existant {container_name}")
+                logger.warning(f"⚠️ Suppression du conteneur existant {container_name} (statut: {existing.status})")
                 existing.remove(force=True)
                 logger.info(f"✅ Conteneur {container_name} supprimé")
         except docker.errors.NotFound:
@@ -290,7 +290,7 @@ def check_and_scale():
         
         # Calculer le nombre de taggers nécessaires
         required_taggers = max(1, min(MAX_WORKERS, (pending_tag_images + IMAGES_PER_WORKER - 1) // IMAGES_PER_WORKER))
-        logger.info(f"📈 Images à tagger: {pending_tag_images, taggers nécessaires: {required_taggers}")
+        logger.info(f"📈 Images à tagger: {pending_tag_images}, taggers nécessaires: {required_taggers}")
         
         # Vérifier l'état actuel des taggers
         active_tagger_ids = get_active_worker_ids("image_tagger")

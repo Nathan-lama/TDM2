@@ -8,6 +8,10 @@ from pyspark.sql import SparkSession
 from PIL import Image
 from io import BytesIO
 import hashlib
+import traceback
+
+# Remplacer l'import MongoDB par notre connecteur robuste
+from db_connector import get_database
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -129,82 +133,174 @@ def clean_database():
         logger.error(f"Erreur lors du nettoyage de la base de données: {e}")
         return False
 
-def process_task():
-    """Traite les tâches de téléchargement attribuées à ce worker"""
-    # Vérifie s'il y a une tâche de nettoyage
-    clean_task = db.download_tasks.find_one({"worker_id": WORKER_ID, "action": "clean", "status": "pending"})
-    if clean_task:
-        logger.info("Tâche de nettoyage détectée. Nettoyage de la base de données...")
-        success = clean_database()
-        db.download_tasks.update_one(
-            {"_id": clean_task["_id"]},
-            {"$set": {
-                "status": "completed" if success else "failed",
-                "completed_at": time.time()
-            }}
-        )
-        return True
+# Fonction améliorée pour se connecter à MongoDB avec retry
+def get_database_connection(max_retries=5, base_delay=1):
+    """Établit une connexion à la base de données avec mécanisme de retry"""
+    retry_count = 0
+    last_exception = None
     
-    # Traitement normal des tâches de téléchargement
-    task = db.download_tasks.find_one({"worker_id": WORKER_ID, "status": "pending"})
+    while retry_count < max_retries:
+        try:
+            # Tentative de connexion
+            client = MongoClient(DB_URL, serverSelectionTimeoutMS=5000)
+            # Vérifier explicitement la connexion
+            client.admin.command('ping')
+            logger.info("✅ Connexion à MongoDB établie avec succès")
+            return client
+        except Exception as e:
+            last_exception = e
+            retry_count += 1
+            
+            # Calcul du délai avec backoff exponentiel
+            delay = base_delay * (2 ** (retry_count - 1))
+            
+            logger.warning(f"⚠️ Tentative {retry_count}/{max_retries} échouée: {str(e)}")
+            logger.info(f"Nouvelle tentative dans {delay} secondes...")
+            
+            # Attendre avant de réessayer
+            time.sleep(delay)
     
-    if not task:
-        logger.info(f"Aucune tâche trouvée pour le Worker {WORKER_ID}")
-        return False
-    
-    urls = task.get("urls", [])
-    if not urls:
-        logger.warning(f"Tâche trouvée pour le Worker {WORKER_ID} mais sans URLs")
-        return False
-    
-    logger.info(f"Traitement de {len(urls)} URLs pour le Worker {WORKER_ID}")
-    
-    # Utilisation de PySpark pour traiter les URLs
-    urls_rdd = spark.sparkContext.parallelize(urls)
-    
-    # Utilisation d'une fonction qui ne capture pas d'objets non-sérialisables
-    results = urls_rdd.map(download_image_simple).collect()
-    
-    # Traiter les résultats après que Spark a fait son travail
-    success_count = 0
-    for success, metadata in results:
-        if success:
-            # Maintenant nous pouvons utiliser MongoDB en toute sécurité
-            db.images.update_one(
-                {"_id": metadata["_id"]},
-                {"$set": metadata},
-                upsert=True
-            )
-            success_count += 1
-        else:
-            logger.error(f"Erreur lors du téléchargement de {metadata['url']}: {metadata.get('error')}")
-    
-    # Mettre à jour le statut de la tâche
-    db.download_tasks.update_one(
-        {"_id": task["_id"]},
-        {"$set": {
-            "status": "completed",
-            "completed_at": time.time(),
-            "success_count": success_count,
-            "total_count": len(urls)
-        }}
-    )
-    
-    logger.info(f"Tâche complétée: {success_count}/{len(urls)} images téléchargées avec succès")
-    return True
+    logger.error(f"❌ Impossible de se connecter à MongoDB après {max_retries} tentatives: {last_exception}")
+    raise last_exception
 
-def main():
-    """Fonction principale du téléchargeur d'images"""
-    while True:
-        task_processed = process_task()
+# Fonction pour effectuer des opérations MongoDB avec gestion des erreurs
+def safe_db_operation(operation_func, max_retries=3):
+    """Exécute une opération MongoDB avec gestion des erreurs et reconnexion si nécessaire"""
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            return operation_func()
+        except pymongo.errors.ServerSelectionTimeoutError as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                logger.error(f"❌ Échec définitif de l'opération après {max_retries} tentatives")
+                raise
+            
+            logger.warning(f"⚠️ Erreur de connexion à MongoDB: {e}")
+            logger.info(f"Tentative de reconnexion ({retry_count}/{max_retries})...")
+            
+            # Tentative de reconnexion
+            try:
+                global client, db
+                client = get_database_connection()
+                db = client.get_database()
+                logger.info("✅ Reconnexion à MongoDB réussie")
+            except Exception as reconnect_error:
+                logger.error(f"❌ Échec de reconnexion: {reconnect_error}")
+            
+            # Attendre avant de réessayer l'opération
+            time.sleep(2)
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de l'opération MongoDB: {e}")
+            raise
+
+# Remplacer les appels directs à la base de données par des versions sécurisées
+def process_task():
+    """Traitement des tâches avec gestion robuste des erreurs de connexion"""
+    try:
+        # Recherche d'une tâche de nettoyage avec gestion d'erreurs
+        def find_clean_task():
+            return db.download_tasks.find_one({"worker_id": WORKER_ID, "action": "clean", "status": "pending"})
         
-        if not task_processed:
-            # Pas de tâche, attendre un peu plus longtemps
-            logger.info("En attente de nouvelles tâches...")
-            time.sleep(60)
+        clean_task = safe_db_operation(find_clean_task)
+        
+        if clean_task:
+            logger.info("Tâche de nettoyage détectée. Nettoyage de la base de données...")
+            success = clean_database()
+            db.download_tasks.update_one(
+                {"_id": clean_task["_id"]},
+                {"$set": {
+                    "status": "completed" if success else "failed",
+                    "completed_at": time.time()
+                }}
+            )
+            return True
+            
+        # Recherche d'une tâche de téléchargement avec gestion d'erreurs
+        def find_download_task():
+            return db.download_tasks.find_one({"worker_id": WORKER_ID, "status": "pending"})
+            
+        task = safe_db_operation(find_download_task)
+        
+        if task:
+            urls = task.get("urls", [])
+            if not urls:
+                logger.warning(f"Tâche trouvée pour le Worker {WORKER_ID} mais sans URLs")
+                return False
+            
+            logger.info(f"Traitement de {len(urls)} URLs pour le Worker {WORKER_ID}")
+            
+            # Utilisation de PySpark pour traiter les URLs
+            urls_rdd = spark.sparkContext.parallelize(urls)
+            
+            # Utilisation d'une fonction qui ne capture pas d'objets non-sérialisables
+            results = urls_rdd.map(download_image_simple).collect()
+            
+            # Traiter les résultats après que Spark a fait son travail
+            success_count = 0
+            for success, metadata in results:
+                if success:
+                    # Maintenant nous pouvons utiliser MongoDB en toute sécurité
+                    db.images.update_one(
+                        {"_id": metadata["_id"]},
+                        {"$set": metadata},
+                        upsert=True
+                    )
+                    success_count += 1
+                else:
+                    logger.error(f"Erreur lors du téléchargement de {metadata['url']}: {metadata.get('error')}")
+            
+            # Mettre à jour le statut de la tâche
+            db.download_tasks.update_one(
+                {"_id": task["_id"]},
+                {"$set": {
+                    "status": "completed",
+                    "completed_at": time.time(),
+                    "success_count": success_count,
+                    "total_count": len(urls)
+                }}
+            )
+            
+            logger.info(f"Tâche complétée: {success_count}/{len(urls)} images téléchargées avec succès")
+            return True
         else:
-            # Tâche traitée, vérifier rapidement s'il y en a d'autres
-            time.sleep(5)
+            logger.info(f"Aucune tâche trouvée pour le Worker {WORKER_ID}")
+            logger.info("En attente de nouvelles tâches...")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du traitement des tâches: {e}")
+        logger.error(traceback.format_exc())
+        time.sleep(10)  # Attente plus longue en cas d'erreur grave
+        return False
+
+# Initialisation avec la nouvelle fonction de connexion résiliente
+def main():
+    global client, db
+    
+    logger.info(f"🚀 Démarrage du worker image_downloader {WORKER_ID}")
+    
+    try:
+        # Établir la connexion initiale avec gestion des erreurs
+        client = get_database_connection(max_retries=10, base_delay=2)
+        db = client.get_database()
+        
+        while True:
+            task_processed = process_task()
+            
+            # Petit délai si aucune tâche n'a été traitée
+            if not task_processed:
+                time.sleep(60)  # Une minute d'attente entre les vérifications
+            else:
+                # Temps de repos court entre les tâches
+                time.sleep(1)
+                
+    except KeyboardInterrupt:
+        logger.info("Arrêt du worker")
+    except Exception as e:
+        logger.critical(f"❌ Erreur fatale: {e}")
+        logger.critical(traceback.format_exc())
+        raise
 
 if __name__ == "__main__":
     main()

@@ -151,6 +151,116 @@
                 </div>
             </div>
         </div>
+
+        <!-- Nouvelle section téléchargements récents groupés par worker -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-download me-1"></i>
+                Activité des Workers de Téléchargement
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for worker_id, worker in downloaders.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center
+                                 {% if worker.status == 'active' %}bg-success text-white{% elif worker.status == 'pending' %}bg-warning{% else %}bg-light{% endif %}">
+                                <span>{{ worker.name }}</span>
+                                <span class="badge bg-{% if worker.status == 'active' %}primary{% elif worker.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                    {{ worker.status|title }}
+                                </span>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="list-group list-group-flush small">
+                                    {% for task in worker.tasks[:3] %}
+                                    <div class="list-group-item px-2 py-2">
+                                        <div class="d-flex justify-content-between">
+                                            <span class="text-truncate" title="Task ID: {{ task._id }}">
+                                                {% if task.theme %}
+                                                    <i class="fas fa-tags me-1"></i> {{ task.theme|title }}
+                                                {% elif task.urls %}
+                                                    <i class="fas fa-images me-1"></i> {{ task.urls|length }} URL{{ 's' if task.urls|length > 1 else '' }}
+                                                {% else %}
+                                                    <i class="fas fa-tasks me-1"></i> Tâche {{ task._id[:6] }}...
+                                                {% endif %}
+                                            </span>
+                                            <span class="{{ task.status_class }}">
+                                                {{ task.progress_text }}
+                                            </span>
+                                        </div>
+                                        {% if task.progress_percent is defined %}
+                                        <div class="progress mt-1" style="height: 4px;">
+                                            <div class="progress-bar bg-{% if task.status == 'completed' %}success{% elif task.status == 'in_progress' %}info{% elif task.status == 'pending' %}warning{% else %}secondary{% endif %}"
+                                                 role="progressbar" style="width: {{ task.progress_percent }}%;"
+                                                 aria-valuenow="{{ task.progress_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    <div class="list-group-item px-2 py-3 text-center text-muted">
+                                        Aucune tâche récente
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="card-footer text-muted small">
+                                {% set active_tasks = worker.tasks|selectattr('status', 'equalto', 'in_progress')|list %}
+                                {% set pending_tasks = worker.tasks|selectattr('status', 'equalto', 'pending')|list %}
+                                {{ active_tasks|length }} tâche{% if active_tasks|length != 1 %}s{% endif %} active{% if active_tasks|length != 1 %}s{% endif %}, 
+                                {{ pending_tasks|length }} en attente
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12 text-center text-muted py-5">
+                        <i class="fas fa-info-circle me-1"></i> Aucun worker de téléchargement actif
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Activité récente original (garder pour référence) -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-history me-1"></i>
+                Téléchargements Récents
+            </div>
+            <div class="card-body">
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Worker</th>
+                            <th>Statut</th>
+                            <th>Progression</th>
+                            <th>Créée le</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in downloader_tasks %}
+                        <tr>
+                            <td><a href="{{ url_for('task.task_debug', task_id=task._id) }}">{{ task._id[:8] }}...</a></td>
+                            <td>{{ task.worker_name }}</td>
+                            <td><span class="badge bg-{{ task.status_class }}">{{ task.status|title }}</span></td>
+                            <td>
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ task.progress_percent }}%;" 
+                                         aria-valuenow="{{ task.progress_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <small>{{ task.progress_text }}</small>
+                            </td>
+                            <td>{{ task.created_at_fmt }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">Aucune tâche récente</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

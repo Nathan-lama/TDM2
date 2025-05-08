@@ -8,9 +8,13 @@ RUN apt-get update && \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Installation des dépendances Python
+# Copier les fichiers de dépendances
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Installation des dépendances Python avec des logs clairs
+RUN pip install --no-cache-dir -r requirements.txt && \
+    echo "Dépendances installées:" && \
+    pip list
 
 # Copier le code de l'application
 COPY . .
