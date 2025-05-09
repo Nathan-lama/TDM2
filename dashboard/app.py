@@ -30,7 +30,7 @@ def direct_serve_image(image_id):
 
 @app.route('/batch_download', methods=['GET', 'POST'])
 def redirect_batch_download():
-    """Redirect to the new batch_download route"""
+    """Redirect to the new batch_download routed"""
     return redirect(url_for('task.batch_download'))
 
 @app.route('/clear_database', methods=['GET', 'POST'])
