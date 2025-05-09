@@ -16,17 +16,22 @@ services:
     networks:
       - app_network
 
-  image_downloader_1:
+  image_downloader:
     build: ./image_downloader
-    volumes:
-      - shared_data:/data
     depends_on:
       - database
     environment:
       - DATABASE_URL=mongodb://database:27017/imagesdb
-      - WORKER_ID=1
+      - WORKER_ID={{.Task.Slot}}  # ID automatique basé sur le numéro du réplica
+    volumes:
+      - shared_data:/data/images
     networks:
       - app_network
+    deploy:
+      replicas: 2  # Nombre fixe de workers au démarrage
+      update_config:
+        parallelism: 1
+        order: start-first
 
   image_tagger_1:
     build: ./image_tagger

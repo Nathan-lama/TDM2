@@ -162,8 +162,8 @@ def scale_service_compose(service_name, count):
         
         logger.info(f"🔄 Tentative de mise à l'échelle de {service_name} à {count} instances via docker-compose")
         
-        # Exécuter la commande docker-compose scale
-        cmd = f"docker-compose -p {COMPOSE_PROJECT} -f {COMPOSE_FILE} up -d --scale {service_name}={count} {service_name}"
+        # Utiliser docker-compose up avec l'option --scale
+        cmd = f"docker-compose up -d --scale {service_name}={count}"
         logger.info(f"📝 Commande: {cmd}")
         
         process = subprocess.run(
@@ -176,23 +176,16 @@ def scale_service_compose(service_name, count):
         
         if process.returncode == 0:
             logger.info(f"✅ Scaling réussi pour {service_name}: {count} instances")
-            stdout = process.stdout.decode('utf-8')
-            logger.info(f"📝 Sortie standard: {stdout}")
             return True
         else:
             stderr = process.stderr.decode('utf-8')
             logger.error(f"❌ Échec du scaling pour {service_name}: {stderr}")
+            return False
             
-            # Le scaling via docker-compose a échoué, tentons une approche manuelle
-            logger.info(f"🔄 Tentative de scaling manuel pour {service_name}")
-            return scale_service_manually(service_name, count)
-    
     except Exception as e:
         logger.error(f"❌ Erreur lors du scaling via docker-compose: {e}")
         traceback.print_exc()
-        
-        # Fallback sur la méthode manuelle
-        return scale_service_manually(service_name, count)
+        return False
 
 def scale_service_manually(service_name, target_count):
     """Tente de scaler manuellement un service en créant/supprimant des conteneurs"""
@@ -263,9 +256,10 @@ def check_and_scale():
             if isinstance(urls, list):
                 pending_download_urls += len(urls)
         
-        # Calculer le nombre de workers nécessaires
+        # Calculer le nombre de downloaders nécessaires (20 images par worker)
+        IMAGES_PER_WORKER = 20
         required_downloaders = max(1, min(MAX_WORKERS, (pending_download_urls + IMAGES_PER_WORKER - 1) // IMAGES_PER_WORKER))
-        logger.info(f"📈 URLs en attente: {pending_download_urls}, téléchargeurs nécessaires: {required_downloaders}")
+        logger.info(f"📈 URLs en attente: {pending_download_urls}, downloaders nécessaires: {required_downloaders}")
         
         # Vérifier l'état actuel des downloaders
         active_downloader_ids = get_active_worker_ids("image_downloader")

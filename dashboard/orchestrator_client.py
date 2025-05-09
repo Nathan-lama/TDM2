@@ -240,94 +240,24 @@ class OrchestratorClient:
         return self._direct_scale_service(service_name, count)
     
     def _direct_scale_service(self, service_name, count):
-        """Redimensionne un service directement via Docker"""
+        """Redimensionne un service directement via docker-compose up --scale"""
         try:
-            if not self.docker_client:
-                self.docker_client = docker.from_env()
+            cmd = f"docker-compose up -d --scale {service_name}={count}"
+            logger.info(f"Exécution de la commande: {cmd}")
             
-            logger.info(f"Mode direct: Scaling {service_name} à {count} instances")
+            result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
-            # 1. Trouver tous les conteneurs existants de ce service
-            all_containers = self.docker_client.containers.list(
-                all=True,
-                filters={"label": [f"com.docker.compose.service={service_name}"]}
-            )
-            
-            # 2. Identifier les worker_ids existants et les conteneurs par worker_id
-            worker_ids = set()
-            container_map = {}
-            running_containers = []
-            
-            for container in all_containers:
-                # Chercher le worker_id dans les variables d'environnement
-                worker_id = None
-                env_vars = container.attrs.get('Config', {}).get('Env', [])
+            if result.returncode == 0:
+                logger.info(f"Service {service_name} mis à l'échelle avec succès à {count} instances")
+                return True, f"Service {service_name} mis à l'échelle à {count} instances"
+            else:
+                error = result.stderr.decode()
+                logger.error(f"Erreur lors du scaling: {error}")
+                return False, f"Erreur lors du scaling: {error}"
                 
-                for env in env_vars:
-                    if env.startswith("WORKER_ID="):
-                        try:
-                            worker_id = int(env.split('=')[1])
-                            break
-                        except ValueError:
-                            pass
-                
-                if worker_id is not None:
-                    worker_ids.add(worker_id)
-                    container_map[worker_id] = container
-                    
-                    if container.status == "running":
-                        running_containers.append((worker_id, container))
-            
-            logger.info(f"Trouvé {len(all_containers)} conteneurs dont {len(running_containers)} actifs")
-            
-            # 3. Si nous avons déjà exactement le bon nombre de conteneurs en cours d'exécution
-            if len(running_containers) == count:
-                return True, f"Service {service_name} déjà à l'échelle correcte ({count} instances)"
-            
-            # 4. Si nous devons réduire le nombre de conteneurs
-            if len(running_containers) > count:
-                # Trier par worker_id pour supprimer les plus élevés en premier
-                running_containers.sort(key=lambda x: x[0], reverse=True)
-                
-                # Supprimer les conteneurs excédentaires
-                to_remove = running_containers[:len(running_containers) - count]
-                for worker_id, container in to_remove:
-                    try:
-                        logger.info(f"Suppression du conteneur {container.name}")
-                        container.stop(timeout=1)
-                        container.remove(force=True)
-                        logger.info(f"Conteneur {container.name} supprimé")
-                    except Exception as e:
-                        logger.error(f"Erreur lors de la suppression du conteneur {container.name}: {e}")
-                
-                return True, f"Service {service_name} réduit à {count} instances"
-            
-            # 5. Si nous avons besoin de créer des conteneurs
-            needed = count - len(running_containers)
-            
-            # Créer les conteneurs manquants
-            for i in range(needed):
-                # Trouver un worker_id disponible
-                new_worker_id = 1
-                while new_worker_id in worker_ids:
-                    new_worker_id += 1
-                
-                # Essayer de créer le conteneur
-                success, message = self._direct_create_container(service_name, new_worker_id)
-                if not success:
-                    logger.error(f"Échec de la création du conteneur {service_name}_{new_worker_id}: {message}")
-                    return False, f"Scaling partiel: {i} conteneurs sur {needed} créés. Erreur: {message}"
-                
-                # Ajouter le worker_id à l'ensemble pour éviter de réutiliser le même
-                worker_ids.add(new_worker_id)
-                logger.info(f"Conteneur {service_name}_{new_worker_id} créé avec succès")
-            
-            return True, f"Service {service_name} étendu à {count} instances"
-            
         except Exception as e:
-            error_msg = f"Erreur lors du scaling direct: {str(e)}"
+            error_msg = f"Erreur lors du scaling: {str(e)}"
             logger.error(error_msg)
-            logger.error(traceback.format_exc())
             return False, error_msg
 
     def redistribute_task(self, task_id):

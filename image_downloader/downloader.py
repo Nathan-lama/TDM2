@@ -218,7 +218,34 @@ def process_task():
             
         # Recherche d'une tâche de téléchargement avec gestion d'erreurs
         def find_download_task():
-            return db.download_tasks.find_one({"worker_id": WORKER_ID, "status": "pending"})
+            """Recherche une tâche pour ce worker avec meilleure gestion des erreurs"""
+            try:
+                # D'abord chercher une tâche spécifique pour ce worker
+                task = db.download_tasks.find_one({
+                    "worker_id": WORKER_ID,
+                    "status": "pending"
+                })
+                
+                if not task:
+                    # Si aucune tâche trouvée, chercher une tâche en attente pour n'importe quel worker
+                    task = db.download_tasks.find_one_and_update(
+                        {
+                            "status": "pending",
+                            "worker_id": {"$gt": 0}  # N'importe quel worker_id positif
+                        },
+                        {
+                            "$set": {
+                                "worker_id": WORKER_ID,
+                                "assigned_at": time.time()
+                            }
+                        },
+                        return_document=True
+                    )
+                
+                return task
+            except Exception as e:
+                logger.error(f"Erreur lors de la recherche de tâche: {e}")
+                return None
             
         task = safe_db_operation(find_download_task)
         
