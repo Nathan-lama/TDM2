@@ -119,40 +119,36 @@ def batch_download():
         if len(urls) < count:
             flash(f"Seulement {len(urls)} images trouvées sur les {count} demandées", "info")
         
-        # Définir le nombre d'images par worker de manière dynamique
-        IMAGES_PER_WORKER = 10  # Idéalement 10 images par worker
+        # Définir le nombre d'images par worker
+        IMAGES_PER_WORKER = 20  # Exactement 20 images par worker
         
-        # Calculer le nombre optimal de workers en fonction du nombre d'images
-        optimal_worker_count = max(1, min(5, (len(urls) + IMAGES_PER_WORKER - 1) // IMAGES_PER_WORKER))
+        # Calculer le nombre de workers nécessaires (arrondi supérieur)
+        requested_workers = (len(urls) + IMAGES_PER_WORKER - 1) // IMAGES_PER_WORKER
+        requested_workers = min(requested_workers, 5)  # Maximum 5 workers
         
-        # Utiliser un seul worker pour moins de 10 images
-        if len(urls) <= IMAGES_PER_WORKER:
-            worker_count = 1
-        else:
-            worker_count = optimal_worker_count
+        # Obtenir le nombre actuel de workers
+        current_workers = orchestrator_client.get_current_scale()
+        debug_logger.debug(f"Workers actuels: {current_workers}")
         
-        # Afficher le raisonnement de scaling
-        scaling_explanation = f"Autoscaling: {len(urls)} images ÷ {IMAGES_PER_WORKER} images par worker = {worker_count} worker{'s' if worker_count > 1 else ''}"
-        flash(scaling_explanation, "info")
+        # Calculer le nombre optimal de workers nécessaires
+        optimal_workers = min((len(urls) + IMAGES_PER_WORKER - 1) // IMAGES_PER_WORKER, 5)
         
-        # Effectuer l'auto-scaling
-        if auto_scale:
-            try:
-                success, message = orchestrator_client.scale_service("image_downloader", worker_count)
-                if success:
-                    flash(f"Service image_downloader scaled à {worker_count} instance{'s' if worker_count > 1 else ''}", "success")
-                else:
-                    flash(f"Échec du scaling automatique: {message}", "danger")
-            except Exception as e:
-                flash(f"Erreur lors du scaling: {str(e)}", "danger")
+        # Si scaling demandé mais impossible, adapter la distribution
+        if auto_scale and optimal_workers > current_workers:
+            flash(f"⚠️ Note: {len(urls)} images seront distribuées sur les {current_workers} workers existants " 
+                  f"(optimal serait {optimal_workers} workers)", "warning")
+        
+        # Utiliser le nombre réel de workers pour la distribution
+        worker_count = current_workers
+        base_urls_per_worker = len(urls) // worker_count
+        extra_urls = len(urls) % worker_count
+        
+        debug_logger.debug(f"Distribution: {base_urls_per_worker} URLs par worker + {extra_urls} extra")
         
         # Distribution optimisée des URLs entre les workers
         tasks_created = 0
         
         # Calculer équitablement la répartition des URLs
-        base_urls_per_worker = len(urls) // worker_count
-        extra_urls = len(urls) % worker_count
-        
         start_idx = 0
         for worker_id in range(1, worker_count + 1):
             # Calculer le nombre d'URLs pour ce worker (distribution équitable)
