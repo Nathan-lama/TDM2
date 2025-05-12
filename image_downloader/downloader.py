@@ -130,6 +130,7 @@ def clean_database():
         return False
 
 def process_task():
+<<<<<<< HEAD
     """Traite les tâches de téléchargement attribuées à ce worker"""
     # Vérifie s'il y a une tâche de nettoyage
     clean_task = db.download_tasks.find_one({"worker_id": WORKER_ID, "action": "clean", "status": "pending"})
@@ -150,6 +151,111 @@ def process_task():
     
     if not task:
         logger.info(f"Aucune tâche trouvée pour le Worker {WORKER_ID}")
+=======
+    """Traitement des tâches avec gestion robuste des erreurs de connexion"""
+    try:
+        # Recherche d'une tâche de nettoyage avec gestion d'erreurs
+        def find_clean_task():
+            return db.download_tasks.find_one({"worker_id": WORKER_ID, "action": "clean", "status": "pending"})
+        
+        clean_task = safe_db_operation(find_clean_task)
+        
+        if clean_task:
+            logger.info("Tâche de nettoyage détectée. Nettoyage de la base de données...")
+            success = clean_database()
+            db.download_tasks.update_one(
+                {"_id": clean_task["_id"]},
+                {"$set": {
+                    "status": "completed" if success else "failed",
+                    "completed_at": time.time()
+                }}
+            )
+            return True
+            
+        # Recherche d'une tâche de téléchargement avec gestion d'erreurs
+        def find_download_task():
+            """Recherche une tâche pour ce worker avec meilleure gestion des erreurs"""
+            try:
+                # D'abord chercher une tâche spécifique pour ce worker
+                task = db.download_tasks.find_one({
+                    "worker_id": WORKER_ID,
+                    "status": "pending"
+                })
+                
+                if not task:
+                    # Si aucune tâche trouvée, chercher une tâche en attente pour n'importe quel worker
+                    task = db.download_tasks.find_one_and_update(
+                        {
+                            "status": "pending",
+                            "worker_id": {"$gt": 0}  # N'importe quel worker_id positif
+                        },
+                        {
+                            "$set": {
+                                "worker_id": WORKER_ID,
+                                "assigned_at": time.time()
+                            }
+                        },
+                        return_document=True
+                    )
+                
+                return task
+            except Exception as e:
+                logger.error(f"Erreur lors de la recherche de tâche: {e}")
+                return None
+            
+        task = safe_db_operation(find_download_task)
+        
+        if task:
+            urls = task.get("urls", [])
+            if not urls:
+                logger.warning(f"Tâche trouvée pour le Worker {WORKER_ID} mais sans URLs")
+                return False
+            
+            logger.info(f"Traitement de {len(urls)} URLs pour le Worker {WORKER_ID}")
+            
+            # Utilisation de PySpark pour traiter les URLs
+            urls_rdd = spark.sparkContext.parallelize(urls)
+            
+            # Utilisation d'une fonction qui ne capture pas d'objets non-sérialisables
+            results = urls_rdd.map(download_image_simple).collect()
+            
+            # Traiter les résultats après que Spark a fait son travail
+            success_count = 0
+            for success, metadata in results:
+                if success:
+                    # Maintenant nous pouvons utiliser MongoDB en toute sécurité
+                    db.images.update_one(
+                        {"_id": metadata["_id"]},
+                        {"$set": metadata},
+                        upsert=True
+                    )
+                    success_count += 1
+                else:
+                    logger.error(f"Erreur lors du téléchargement de {metadata['url']}: {metadata.get('error')}")
+            
+            # Mettre à jour le statut de la tâche
+            db.download_tasks.update_one(
+                {"_id": task["_id"]},
+                {"$set": {
+                    "status": "completed",
+                    "completed_at": time.time(),
+                    "success_count": success_count,
+                    "total_count": len(urls)
+                }}
+            )
+            
+            logger.info(f"Tâche complétée: {success_count}/{len(urls)} images téléchargées avec succès")
+            return True
+        else:
+            logger.info(f"Aucune tâche trouvée pour le Worker {WORKER_ID}")
+            logger.info("En attente de nouvelles tâches...")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Erreur lors du traitement des tâches: {e}")
+        logger.error(traceback.format_exc())
+        time.sleep(10)  # Attente plus longue en cas d'erreur grave
+>>>>>>> 6225a782b678423ab828fcbe9e7157a490688534
         return False
     
     urls = task.get("urls", [])

@@ -224,6 +224,48 @@
                 </div>
             </div>
         </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Préférences</h5>
+            </div>
+            <div class="card-body">
+                {% if user.preferences %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Genres préférés:</h6>
+                            {% if user.preferences.genres %}
+                                {% for genre in user.preferences.genres %}
+                                    <span class="badge badge-info">{{ genre }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted">Aucun genre préféré détecté encore. L'utilisateur doit aimer plus d'images.</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Couleurs préférées:</h6>
+                            {% if user.preferences.colors %}
+                                {% for color in user.preferences.colors %}
+                                    <span class="badge badge-light">{{ color }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted">Aucune couleur préférée détectée encore. L'utilisateur doit aimer plus d'images.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i> Les préférences sont déterminées automatiquement à partir des images que l'utilisateur aime.
+                        {% if user.preferences_updated_at %}
+                            <br>
+                            <small class="text-muted">Dernière mise à jour: {{ user.preferences_updated_at|timestamp_to_date }}</small>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Aucune préférence disponible. L'utilisateur doit aimer des images pour générer des préférences.</p>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

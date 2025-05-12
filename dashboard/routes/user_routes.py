@@ -35,6 +35,44 @@ def user_detail(user_id):
         if image:
             disliked_images.append(image)
     
+    # Analyser automatiquement les préférences basées sur les likes
+    if liked_images:
+        # Extraire les tags et couleurs des images aimées
+        all_tags = []
+        all_colors = []
+        
+        for image in liked_images:
+            if "tags" in image and image["tags"]:
+                all_tags.extend(image["tags"])
+            
+            if "dominant_colors" in image:
+                for color in image["dominant_colors"]:
+                    if "name" in color:
+                        all_colors.append(color["name"])
+        
+        # Identifier les préférences les plus fréquentes
+        from collections import Counter
+        
+        tag_counter = Counter(all_tags)
+        favorite_tags = [tag for tag, _ in tag_counter.most_common(5)]
+        
+        color_counter = Counter(all_colors)
+        favorite_colors = [color for color, _ in color_counter.most_common(5)]
+        
+        # Mettre à jour les préférences de l'utilisateur
+        if favorite_tags or favorite_colors:
+            db.users.update_one(
+                {"_id": user_id},
+                {"$set": {
+                    "preferences.genres": favorite_tags,
+                    "preferences.colors": favorite_colors,
+                    "preferences_updated_at": time.time()
+                }}
+            )
+            
+            # Recharger l'utilisateur avec les préférences mises à jour
+            user = db.users.find_one({"_id": user_id})
+    
     # Récupérer les recommandations
     recommendations = db.recommendations.find_one({"user_id": user_id})
     recommended_images = []
@@ -62,22 +100,21 @@ def create_user():
             flash("Le nom est requis", "warning")
             return redirect(url_for('create_user'))
         
-        # Préférences de genre et couleur
-        genres = request.form.getlist('genres')
-        colors = request.form.getlist('colors')
-        
+        # Créer l'utilisateur avec des préférences vides qui seront déterminées automatiquement
         db.users.insert_one({
             "_id": user_id,
             "name": name,
             "preferences": {
-                "genres": genres,
-                "colors": colors
+                "genres": [],  # Sera rempli automatiquement
+                "colors": []   # Sera rempli automatiquement
             },
             "created_at": datetime.datetime.now()
         })
         
-        flash(f"Utilisateur {name} créé avec succès", "success")
-        return redirect(url_for('users'))
+        flash(f"Utilisateur {name} créé avec succès. Commencez à aimer des images pour générer des préférences!", "success")
+        
+        # Rediriger vers la navigation d'images pour commencer à générer des préférences
+        return redirect(url_for('image_browser', user_id=user_id))
     
     return render_template('create_user.html')
 

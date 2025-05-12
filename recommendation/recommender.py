@@ -31,7 +31,7 @@ spark.sparkContext.setLogLevel("WARN")
 logger.info("Session Spark initialisée avec succès")
 
 def get_user_preferences(user_id):
-    """Récupère les préférences d'un utilisateur basées sur ses likes"""
+    """Récupère ou déduit les préférences d'un utilisateur"""
     try:
         # Récupérer tous les likes de l'utilisateur
         likes = list(db.user_likes.find({"user_id": user_id, "liked": True}))
@@ -73,7 +73,17 @@ def get_user_preferences(user_id):
             "orientation": get_preferred_orientation(liked_images)
         }
         
-        logger.info(f"Préférences pour {user_id}: {len(favorite_tags)} tags, {len(favorite_colors)} couleurs")
+        # Mettre à jour les préférences dans le profil utilisateur
+        db.users.update_one(
+            {"_id": user_id},
+            {"$set": {
+                "preferences.genres": favorite_tags,
+                "preferences.colors": favorite_colors,
+                "preferences_updated_at": time.time()
+            }}
+        )
+        
+        logger.info(f"Préférences mises à jour pour {user_id}: {len(favorite_tags)} tags, {len(favorite_colors)} couleurs")
         return preferences
         
     except Exception as e:
