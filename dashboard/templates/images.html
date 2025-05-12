@@ -79,20 +79,25 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Images</h5>
-                <a href="/batch_download" class="btn btn-sm btn-primary">Télécharger plus d'images</a>
+                <div>
+                    <form method="post" action="/tag_all_images" class="d-inline">
+                        <button type="submit" class="btn btn-warning">Tagger toutes les images</button>
+                    </form>
+                    <a href="/batch_download" class="btn btn-primary ml-2">Télécharger plus d'images</a>
+                </div>
             </div>
             <div class="card-body">
-                {% if images %}
+                {% if images and images|length > 0 %}
                     <div class="row">
                         {% for image in images %}
-                            <div class="col-md-3">
+                            <div class="col-md-3 mb-4">
                                 <div class="img-container">
                                     <a href="/image/{{ image._id }}">
                                         <img src="/images/{{ image._id }}" onerror="this.src='/static/no-image.jpg'" alt="Image">
                                     </a>
                                     <div class="img-info">
                                         <div class="text-truncate">ID: {{ image._id }}</div>
-                                        <div>{{ image.width }}x{{ image.height }}</div>
+                                        <div>{{ image.width if image.width else 'N/A' }}x{{ image.height if image.height else 'N/A' }}</div>
                                         <div>{{ "Tagué" if image.tagged else "Non tagué" }}</div>
                                     </div>
                                 </div>
@@ -105,19 +110,19 @@
                         <ul class="pagination justify-content-center">
                             {% if page > 1 %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ page - 1 }}">&laquo; Précédent</a>
+                                    <a class="page-link" href="{{ url_for('images_gallery', page=page-1) }}">&laquo; Précédent</a>
                                 </li>
                             {% endif %}
                             
                             {% for p in range(1, total_pages + 1) %}
                                 <li class="page-item {{ 'active' if p == page else '' }}">
-                                    <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                                    <a class="page-link" href="{{ url_for('images_gallery', page=p) }}">{{ p }}</a>
                                 </li>
                             {% endfor %}
                             
                             {% if page < total_pages %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ page + 1 }}">Suivant &raquo;</a>
+                                    <a class="page-link" href="{{ url_for('images_gallery', page=page+1) }}">Suivant &raquo;</a>
                                 </li>
                             {% endif %}
                         </ul>

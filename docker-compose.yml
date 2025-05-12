@@ -5,14 +5,10 @@ services:
     build: ./orchestrator
     volumes:
       - shared_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "5001:5001"  # Exposer l'API REST de l'orchestrateur
     depends_on:
       - database
     environment:
       - DATABASE_URL=mongodb://database:27017/imagesdb
-      - PROJECT_PATH=/app
     networks:
       - app_network
 
@@ -28,6 +24,18 @@ services:
     networks:
       - app_network
 
+  image_downloader_2:
+    build: ./image_downloader
+    volumes:
+      - shared_data:/data
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - WORKER_ID=2
+    networks:
+      - app_network
+
   image_tagger_1:
     build: ./image_tagger
     volumes:
@@ -37,6 +45,18 @@ services:
     environment:
       - DATABASE_URL=mongodb://database:27017/imagesdb
       - WORKER_ID=1
+    networks:
+      - app_network
+
+  image_tagger_2:
+    build: ./image_tagger
+    volumes:
+      - shared_data:/data
+    depends_on:
+      - database
+    environment:
+      - DATABASE_URL=mongodb://database:27017/imagesdb
+      - WORKER_ID=2
     networks:
       - app_network
 
@@ -57,14 +77,12 @@ services:
       - "5000:5000"
     volumes:
       - shared_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock  # Accès au socket Docker
     depends_on:
       - database
       - orchestrator
     environment:
       - DATABASE_URL=mongodb://database:27017/imagesdb
-      - PROJECT_PATH=/app
-      - COMPOSE_PATH=/app
     networks:
       - app_network
 

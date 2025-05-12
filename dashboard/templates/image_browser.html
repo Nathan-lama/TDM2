@@ -7,45 +7,54 @@
         .tinder-card {
             width: 100%;
             max-width: 600px;
-            height: 400px;
             margin: 0 auto;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
-            overflow: hidden;
             position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         .tinder-card img {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
+            height: auto;
+            display: block;
         }
-        .tinder-card .info {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 15px;
+        .recommendation-card {
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        .recommendation-card:hover {
+            transform: translateY(-5px);
+        }
+        .recommendation-img {
+            height: 150px;
+            object-fit: cover;
+            width: 100%;
+            border-top-left-radius: 0.25rem;
+            border-top-right-radius: 0.25rem;
         }
         .action-buttons {
-            margin-top: 20px;
             display: flex;
             justify-content: center;
+            margin-top: 20px;
             gap: 20px;
         }
-        .action-button {
-            width: 70px;
-            height: 70px;
+        .action-buttons .btn {
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            font-size: 24px;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
+            font-size: 24px;
         }
-        .no-more {
-            text-align: center;
-            margin-top: 50px;
+        .score-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 123, 255, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
         }
     </style>
 </head>
@@ -62,16 +71,10 @@
                         <a class="nav-link" href="/">Accueil</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/images">Images</a>
+                        <a class="nav-link" href="/images-galery">Images</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/users">Utilisateurs</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/create_task">Créer Tâche</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/batch_download">Téléchargement par lot</a>
                     </li>
                 </ul>
             </div>
@@ -87,53 +90,133 @@
             {% endif %}
         {% endwith %}
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Parcourir les Images</h1>
-            <a href="/users/{{ user_id }}" class="btn btn-secondary">Retour au profil</a>
-        </div>
-        
-        {% if image %}
-            <div class="tinder-card">
-                <img src="/images/{{ image._id }}" onerror="this.src='/static/no-image.jpg'" alt="Image">
-                <div class="info">
-                    <h5>{{ image.width }}x{{ image.height }}</h5>
-                    {% if image.tags %}
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Explorer les images</h5>
                         <div>
-                            {% for tag in image.tags %}
-                                <span class="badge badge-info">{{ tag }}</span>
-                            {% endfor %}
+                            <a href="/user_detail/{{ user_id }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-user"></i> Profil utilisateur
+                            </a>
+                            <!-- Nouveau bouton pour les recommandations -->
+                            <a href="/user/{{ user_id }}/recommendations" class="btn btn-sm btn-primary ml-2">
+                                <i class="fas fa-lightbulb"></i> Recommandations
+                            </a>
                         </div>
-                    {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <div class="tinder-card">
+                            <img src="/images/{{ image._id }}" onerror="this.src='/static/no-image.jpg'" alt="Image">
+                            <div class="p-3">
+                                <h5>Image #{{ image._id }}</h5>
+                                <div class="mb-3">
+                                    {% if image.tags %}
+                                        <strong>Tags:</strong>
+                                        {% for tag in image.tags %}
+                                            <span class="badge badge-info">{{ tag }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                                
+                                {% if image.dominant_colors %}
+                                    <div class="d-flex mb-3">
+                                        {% for color in image.dominant_colors %}
+                                            <div class="mr-2 text-center">
+                                                <div style="width: 30px; height: 30px; background-color: {{ color.hex }}; border-radius: 50%;"></div>
+                                                <small>{{ color.name }}</small>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <form method="post" action="/like_image">
+                                <input type="hidden" name="user_id" value="{{ user_id }}">
+                                <input type="hidden" name="image_id" value="{{ image._id }}">
+                                <input type="hidden" name="liked" value="false">
+                                <input type="hidden" name="redirect_url" value="/image_browser?user_id={{ user_id }}">
+                                <button type="submit" class="btn btn-lg btn-danger">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </form>
+                            
+                            <form method="post" action="/like_image">
+                                <input type="hidden" name="user_id" value="{{ user_id }}">
+                                <input type="hidden" name="image_id" value="{{ image._id }}">
+                                <input type="hidden" name="liked" value="true">
+                                <input type="hidden" name="redirect_url" value="/image_browser?user_id={{ user_id }}">
+                                <button type="submit" class="btn btn-lg btn-success">
+                                    <i class="fas fa-heart"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div class="action-buttons">
-                <form method="post" action="/like_image">
-                    <input type="hidden" name="user_id" value="{{ user_id }}">
-                    <input type="hidden" name="image_id" value="{{ image._id }}">
-                    <input type="hidden" name="redirect_url" value="/image_browser?user_id={{ user_id }}">
-                    
-                    <div class="btn-group">
-                        <button type="submit" name="liked" value="false" class="btn btn-lg btn-danger action-button">✖</button>
-                        <button type="submit" name="liked" value="true" class="btn btn-lg btn-success action-button">❤</button>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Votre activité</h5>
                     </div>
-                </form>
+                    <div class="card-body">
+                        <p>Vous avez aimé <strong>{{ likes_count }}</strong> images.</p>
+                        {% if likes_count < 5 %}
+                            <div class="alert alert-info">
+                                Aimez au moins 5 images pour recevoir des recommandations personnalisées!
+                                <div class="progress mt-2">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ (likes_count/5)*100 }}%"
+                                         aria-valuenow="{{ likes_count }}" aria-valuemin="0" aria-valuemax="5">
+                                        {{ likes_count }}/5
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if show_recommendations %}
+                    <div class="card mt-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Recommandations pour vous</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if recommended_images %}
+                                <div class="row">
+                                    {% for rec_img in recommended_images %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card recommendation-card">
+                                                <a href="/image/{{ rec_img._id }}">
+                                                    <img src="/images/{{ rec_img._id }}" class="recommendation-img" alt="Recommandation">
+                                                    <span class="score-badge">{{ rec_img.recommendation_score|default(0)|round|int }}</span>
+                                                </a>
+                                                <div class="card-body p-2">
+                                                    <small class="text-muted">
+                                                        {% for tag in rec_img.tags[:2] %}
+                                                            <span class="badge badge-info">{{ tag }}</span>
+                                                        {% endfor %}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p>Préparation de vos recommandations...</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
-            
-            <div class="text-center mt-4">
-                <p>Image {{ image._id }}</p>
-            </div>
-        {% else %}
-            <div class="no-more">
-                <h3>Plus d'images disponibles</h3>
-                <p>Vous avez évalué toutes les images disponibles.</p>
-                <a href="/users/{{ user_id }}" class="btn btn-primary">Voir vos recommandations</a>
-            </div>
-        {% endif %}
+        </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://use.fontawesome.com/releases/v5.15.4/js/all.js"></script>
 </body>
 </html>
